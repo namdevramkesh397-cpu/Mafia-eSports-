@@ -17,6 +17,9 @@ import {
   Bell
 } from 'lucide-react';
 import { Page, User as UserType } from '../types';
+import { isAdminAccount } from '../constants';
+import { auth } from '../lib/firebase';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -37,7 +40,30 @@ export default function MenuDrawer({
   onOpenSupport,
   onOpenNotifications
 }: MenuDrawerProps) {
+  const isAdminUser = Boolean(
+    user?.isAdmin ||
+    isAdminAccount(
+      user?.email || auth.currentUser?.email,
+      user?.id || auth.currentUser?.uid
+    )
+  );
+
   const menuItems = [
+    ...(isAdminUser
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin Control Panel',
+            desc: 'Manage matches, rooms, users & payouts',
+            icon: Shield,
+            color: 'bg-red-600/20 text-red-400 border-red-500/30',
+            action: () => {
+              onClose();
+              onPageChange(Page.ADMIN);
+            }
+          }
+        ]
+      : []),
     {
       id: 'profile',
       label: 'My Profile & IGN',
@@ -229,6 +255,8 @@ export default function MenuDrawer({
                   </button>
                 );
               })}
+
+              <PWAInstallButton variant="menu-item" />
             </div>
 
             {/* Close Button */}

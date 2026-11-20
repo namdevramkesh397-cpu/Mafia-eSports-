@@ -10,6 +10,7 @@ import {
   Filter, ChevronUp, ChevronDown, Send, Bell
 } from 'lucide-react';
 import { Page, User, Tournament, Banner, PaymentGateway } from '../types';
+import { isAdminAccount } from '../constants';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../lib/firebase';
 import { formatMatchTime } from '../utils/dateUtils';
 import SafeImage from '../components/SafeImage';
@@ -21,10 +22,11 @@ import {
   addDoc, serverTimestamp, runTransaction, writeBatch,
   query, where, orderBy, getDocs, increment, setDoc
 } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { useModalBackHandler } from '../hooks/useModalBackHandler';
 
 interface AdminPageProps {
+  user?: User | null;
   onPageChange: (page: Page, id?: string) => void;
 }
 
@@ -131,8 +133,9 @@ const RULE_PRESETS: Record<string, { title: string; category: string; rules: str
   }
 };
 
-export default function AdminPage({ onPageChange }: AdminPageProps) {
+export default function AdminPage({ user, onPageChange }: AdminPageProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.DASHBOARD);
+  const [emailVerifyStatus, setEmailVerifyStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [users, setUsers] = useState<User[]>([]);
   const [matches, setMatches] = useState<Tournament[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -231,14 +234,10 @@ export default function AdminPage({ onPageChange }: AdminPageProps) {
 
   // Real-time listeners
   useEffect(() => {
-    // Auth check
-    const email = auth.currentUser?.email;
-    const uid = auth.currentUser?.uid;
-    const isAdminUser = email === 'namdevramkesh397@gmail.com' ||
-                       email === 'mahendrathakur9009@gmail.com' || 
-                       email === 'qupagaming@gmail.com' || 
-                       email === 'mahendrar9009@gmail.com' ||
-                       uid === 'XoXyXcnrlzOaMIKKolXnU3mT9xn1';
+    // Auth check (supports Google, Email/Password, user.isAdmin, and case-insensitive email match)
+    const email = auth.currentUser?.email || user?.email;
+    const uid = auth.currentUser?.uid || user?.id;
+    const isAdminUser = Boolean(user?.isAdmin || isAdminAccount(email, uid));
 
     if (!isAdminUser) {
       onPageChange(Page.HOME);
@@ -1074,6 +1073,49 @@ export default function AdminPage({ onPageChange }: AdminPageProps) {
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Live</span>
           </div>
         </div>
+
+        {auth.currentUser && !auth.currentUser.emailVerified && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col gap-3">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-300">Verify Email for Full Admin Database Access</p>
+                <p className="text-[11px] text-amber-200/80 mt-0.5">
+                  You signed in with Email/Password and your email is not verified yet. Sign in with Google or verify your email so Firestore admin writes succeed.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (!auth.currentUser) return;
+                  setEmailVerifyStatus('sending');
+                  try {
+                    await sendEmailVerification(auth.currentUser);
+                    setEmailVerifyStatus('sent');
+                  } catch {
+                    setEmailVerifyStatus('error');
+                  }
+                }}
+                disabled={emailVerifyStatus === 'sending'}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider disabled:opacity-50"
+              >
+                {emailVerifyStatus === 'sending' ? 'Sending...' : emailVerifyStatus === 'sent' ? 'Verification Sent' : 'Send Verification Link'}
+              </button>
+              <button
+                onClick={async () => {
+                  if (!auth.currentUser) return;
+                  await auth.currentUser.reload();
+                  await auth.currentUser.getIdToken(true);
+                  window.location.reload();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-neutral-800 text-white text-[10px] font-black uppercase tracking-wider"
+              >
+                I Verified - Refresh
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2 no-scrollbar">

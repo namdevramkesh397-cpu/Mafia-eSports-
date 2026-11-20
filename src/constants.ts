@@ -30,3 +30,23 @@ export const GAMES: Game[] = [
   }
 ];
 
+export const ADMIN_EMAILS = [
+  'namdevramkesh397@gmail.com',
+  'qupagaming@gmail.com',
+  'mahendrathakur9009@gmail.com',
+  'mahendrar9009@gmail.com',
+];
+
+export const ADMIN_UIDS = [
+  'XoXyXcnrlzOaMIKKolXnU3mT9xn1',
+];
+
+export function isAdminAccount(email?: string | null, uid?: string | null): boolean {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  return Boolean(
+    (normalizedEmail && ADMIN_EMAILS.includes(normalizedEmail)) ||
+    (uid && ADMIN_UIDS.includes(uid))
+  );
+}
+
+

@@ -16,9 +16,12 @@ import {
   X
 } from 'lucide-react';
 import { Page, User } from '../types';
+import { isAdminAccount } from '../constants';
+import { auth } from '../lib/firebase';
 import SupportModal from '../components/SupportModal';
 import RulesModal from '../components/RulesModal';
 import MyOrdersModal from '../components/MyOrdersModal';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 
 interface ProfilePageProps {
   user: User;
@@ -43,11 +46,13 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
     });
   };
 
-  const isAdminUser =
+  const isAdminUser = Boolean(
     user?.isAdmin ||
-    ['namdevramkesh397@gmail.com', 'mahendrathakur9009@gmail.com', 'mahendrar9009@gmail.com', 'qupagaming@gmail.com'].includes(
-      user?.email || ''
-    );
+    isAdminAccount(
+      user?.email || auth.currentUser?.email,
+      user?.id || auth.currentUser?.uid
+    )
+  );
 
   const totalBalance =
     (user?.wallet?.deposit || 0) + (user?.wallet?.winnings || 0) + (user?.wallet?.bonus || 0);
@@ -326,6 +331,9 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
             </div>
             <ChevronRight size={18} className="text-slate-700 group-hover:translate-x-0.5 transition-transform" />
           </button>
+
+          {/* Card 9b: Install Mobile App / Download APK */}
+          <PWAInstallButton variant="profile-card" />
 
           {/* Card 10: Admin Panel (if admin) */}
           {isAdminUser && (

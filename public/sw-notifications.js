@@ -1,22 +1,13 @@
-// Service Worker for Mafia eSports Mobile Notifications
+// Service Worker Notification Handlers for Mafia eSports (imported by Workbox PWA SW)
 
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-// Listen for messages from web application to display mobile status bar notification
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { title, body, icon, badge, data, tag } = event.data;
-    
+
     const options = {
       body: body || 'You have a new update from Mafia eSports',
-      icon: icon || '/ff-india-logo.jpg',
-      badge: badge || '/ff-india-logo.jpg',
+      icon: icon || '/pwa-192x192.png',
+      badge: badge || '/pwa-192x192.png',
       vibrate: [200, 100, 200, 100, 200],
       tag: tag || 'mafia-esports-' + Date.now(),
       renotify: true,
@@ -32,13 +23,12 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Handle push events (for background push notifications)
 self.addEventListener('push', (event) => {
   let notifData = {
     title: 'Mafia eSports Notification',
     body: 'New match update available',
-    icon: '/ff-india-logo.jpg',
-    badge: '/ff-india-logo.jpg',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
     data: {}
   };
 
@@ -46,7 +36,7 @@ self.addEventListener('push', (event) => {
     try {
       const parsed = event.data.json();
       notifData = { ...notifData, ...parsed };
-    } catch (e) {
+    } catch {
       notifData.body = event.data.text();
     }
   }
@@ -54,8 +44,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(notifData.title, {
       body: notifData.body,
-      icon: notifData.icon || '/ff-india-logo.jpg',
-      badge: notifData.badge || '/ff-india-logo.jpg',
+      icon: notifData.icon || '/pwa-192x192.png',
+      badge: notifData.badge || '/pwa-192x192.png',
       vibrate: [200, 100, 200],
       tag: notifData.tag || 'mafia-esports-push',
       renotify: true,
@@ -64,7 +54,6 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// When user taps the notification in mobile notification bar
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -76,7 +65,6 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
       for (const client of clientList) {
         if ('focus' in client) {
           if (event.notification.data && event.notification.data.actionPage) {
@@ -89,7 +77,6 @@ self.addEventListener('notificationclick', (event) => {
           return client.focus();
         }
       }
-      // Otherwise open a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }

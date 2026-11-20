@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, Phone, User as UserIcon, Ticket, ArrowRight, Gamepad2, Chrome, AlertCircle, CheckCircle2 } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 import { auth, db } from '../lib/firebase';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -17,12 +19,16 @@ interface AuthProps {
 }
 
 const DEFAULT_USER_DATA = {
-  walletBalance: 100,
-  bonus: 100,
-  winnings: 0,
+  wallet: {
+    deposit: 500,
+    winnings: 0,
+    bonus: 200,
+  },
   isKycVerified: false,
+  isAdmin: false,
   stats: {
     matchesPlayed: 0,
+    totalWins: 0,
     totalKills: 0,
     totalWinnings: 0,
   }
@@ -132,20 +138,24 @@ export default function Auth({ onLogin }: AuthProps) {
       if (isLogin) {
         // Handle Login
         try {
-          await withTimeout(signInWithEmailAndPassword(auth, email, password), 5000, 'Login taking too long. Check connection.');
+          await withTimeout(signInWithEmailAndPassword(auth, email.trim(), password), 5000, 'Login taking too long. Check connection.');
           onLogin();
         } catch (error: any) {
           setErrors({ general: mapAuthError(error.code || error.message) });
         }
       } else {
         // Handle Registration
+        const cleanEmail = email.trim();
         try {
           const userCredential = await withTimeout(
-            createUserWithEmailAndPassword(auth, email, password),
+            createUserWithEmailAndPassword(auth, cleanEmail, password),
             5000,
             'Signup taking too long. Check connection.'
           );
           const firebaseUser = userCredential.user;
+
+          // Send verification email in background so email-verified security rules succeed once verified
+          sendEmailVerification(firebaseUser).catch(() => {});
 
           // Simple device ID tracking
           let deviceId = localStorage.getItem('khel_galli_device_id');
@@ -161,7 +171,7 @@ export default function Auth({ onLogin }: AuthProps) {
             await withTimeout(
               setDoc(doc(db, 'users', firebaseUser.uid), {
                 username,
-                email,
+                email: cleanEmail,
                 phone,
                 ...DEFAULT_USER_DATA,
                 referredBy: referredBy || null,
@@ -419,6 +429,10 @@ export default function Auth({ onLogin }: AuthProps) {
               {isLogin ? 'Register here' : 'Login here'}
             </button>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <PWAInstallButton variant="compact" />
         </div>
       </div>
       

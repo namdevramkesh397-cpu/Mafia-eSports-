@@ -16,12 +16,15 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         request.auth.uid == "XoXyXcnrlzOaMIKKolXnU3mT9xn1" ||
         (
-          request.auth.token.email_verified == true && (
-            request.auth.token.email == "namdevramkesh397@gmail.com" ||
-            request.auth.token.email == "qupagaming@gmail.com" ||
-            request.auth.token.email == "mahendrathakur9009@gmail.com" ||
-            request.auth.token.email == "mahendrar9009@gmail.com"
-          )
+          request.auth.token.email_verified == true &&
+          'email' in request.auth.token &&
+          request.auth.token.email is string &&
+          request.auth.token.email.lower() in [
+            "namdevramkesh397@gmail.com",
+            "qupagaming@gmail.com",
+            "mahendrathakur9009@gmail.com",
+            "mahendrar9009@gmail.com"
+          ]
         )
       );
     }

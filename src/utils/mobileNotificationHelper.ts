@@ -1,13 +1,17 @@
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 
-// Register Service Worker for Mobile Notifications
+// Register or reuse Service Worker for Mobile Notifications & PWA
 export async function registerNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return null;
   }
 
   try {
+    const existing = await navigator.serviceWorker.getRegistration('/');
+    if (existing) {
+      return existing;
+    }
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/'
     });

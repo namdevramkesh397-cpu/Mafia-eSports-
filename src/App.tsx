@@ -7,7 +7,7 @@ import BottomNav from './components/BottomNav';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, onSnapshot, increment, updateDoc } from 'firebase/firestore';
-import { GAMES } from './constants';
+import { GAMES, isAdminAccount } from './constants';
 
 // Pages
 import Auth from './pages/Auth';
@@ -30,6 +30,7 @@ import AdminModes from './pages/AdminModes';
 import Leaderboard from './pages/Leaderboard';
 import MatchDetails from './pages/MatchDetails';
 import GlobalNotificationListener from './components/GlobalNotificationListener';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 const DEFAULT_USER_DATA = {
   wallet: {
@@ -113,9 +114,19 @@ export default function App() {
     let unsubscribeUser: (() => void) | null = null;
 
     const seedDatabase = async (email: string, uid: string) => {
-      const admins = ["namdevramkesh397@gmail.com", "qupagaming@gmail.com", "mahendrathakur9009@gmail.com", "mahendrar9009@gmail.com"];
-      if (!admins.includes(email) && uid !== "XoXyXcnrlzOaMIKKolXnU3mT9xn1") return;
+      if (!isAdminAccount(email, uid)) return;
       try {
+        // Ensure admins/{uid} registry doc exists for Firestore security rules
+        await setDoc(
+          doc(db, 'admins', uid),
+          {
+            role: 'super_admin',
+            email: (email || '').trim().toLowerCase(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
         // Independence seeding for games
         const gamesSnap = await getDocs(collection(db, 'games'));
         if (gamesSnap.empty) {
@@ -263,7 +274,14 @@ export default function App() {
               return;
             }
 
-            setUser({ id: userDoc.id, ...data } as User);
+            const shouldBeAdmin = isAdminAccount(firebaseUser.email || data.email, firebaseUser.uid);
+            if (shouldBeAdmin && data.isAdmin !== true) {
+              updateDoc(userDocRef, { isAdmin: true }).catch((err) => {
+                console.warn('Could not persist isAdmin sync yet (may require verified email):', err?.message || err);
+              });
+            }
+
+            setUser({ id: userDoc.id, ...data, isAdmin: Boolean(data.isAdmin || shouldBeAdmin) } as User);
             setIsLoggedIn(true);
             setLoading(false);
 
@@ -279,11 +297,7 @@ export default function App() {
             }
           } else {
             // For Google Auth or unexpected cases, create default profile
-            const isAdmin = firebaseUser.email === 'namdevramkesh397@gmail.com' ||
-                           firebaseUser.email === 'mahendrathakur9009@gmail.com' || 
-                           firebaseUser.email === 'mahendrar9009@gmail.com' || 
-                           firebaseUser.email === 'qupagaming@gmail.com' ||
-                           firebaseUser.uid === 'XoXyXcnrlzOaMIKKolXnU3mT9xn1';
+            const isAdmin = isAdminAccount(firebaseUser.email, firebaseUser.uid);
             const newUser: User = {
               username: firebaseUser.displayName || `Gamer_${firebaseUser.uid.slice(0, 5)}`,
               email: firebaseUser.email || '',
@@ -494,6 +508,7 @@ export default function App() {
         joinedMatchIds={joinedMatchIds} 
         onPageChange={handlePageChange} 
       />
+      <OfflineIndicator />
       {showHeader && <Header user={user!} onPageChange={handlePageChange} />}
       
       <main className="mx-auto max-w-lg min-h-screen bg-background overflow-x-hidden">
@@ -600,7 +615,7 @@ export default function App() {
 
               <Route path="/admin" element={
                 <ProtectedRoute>
-                  <AdminPage onPageChange={handlePageChange} />
+                  <AdminPage user={user} onPageChange={handlePageChange} />
                 </ProtectedRoute>
               } />
 

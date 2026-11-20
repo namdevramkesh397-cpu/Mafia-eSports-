@@ -13,6 +13,7 @@ import MyMatches from '../components/MyMatches';
 import EsportsGamesGrid from '../components/EsportsGamesGrid';
 import RulesModal from '../components/RulesModal';
 import NotificationsModal from '../components/NotificationsModal';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 
 interface HomeProps {
   user: User;
@@ -120,6 +121,9 @@ export default function Home({ user, onPageChange, joinedMatchIds }: HomeProps) 
         onPageChange={onPageChange} 
         onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
+
+      {/* PWA / APK Install Prompt Banner */}
+      <PWAInstallButton variant="banner" />
 
       {/* 2. Announcement / Rules Bar */}
       <AnnouncementBar
