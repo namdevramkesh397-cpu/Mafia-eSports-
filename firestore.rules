@@ -1,0 +1,189 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net - Deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.uid == "XoXyXcnrlzOaMIKKolXnU3mT9xn1" ||
+        (
+          request.auth.token.email_verified == true && (
+            request.auth.token.email == "namdevramkesh397@gmail.com" ||
+            request.auth.token.email == "qupagaming@gmail.com" ||
+            request.auth.token.email == "mahendrathakur9009@gmail.com" ||
+            request.auth.token.email == "mahendrar9009@gmail.com"
+          )
+        )
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidGameMode(data) {
+      return data.keys().hasAll(['id', 'gameId', 'title', 'image']) &&
+             data.id is string && data.id.size() <= 100 &&
+             data.gameId is string && data.gameId.size() <= 50 &&
+             data.title is string && data.title.size() <= 100 &&
+             data.image is string && data.image.size() <= 2500;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['username', 'email', 'wallet']) &&
+             data.username is string && data.username.size() <= 100 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.wallet is map;
+    }
+
+    // --- Specific Collection Rules ---
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Game Modes: Dynamic game mode configurations
+    match /gameModes/{modeId} {
+      allow get: if isSignedIn() && isValidId(modeId);
+      allow list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(modeId) && isValidGameMode(request.resource.data);
+      allow delete: if isAdmin() && isValidId(modeId);
+    }
+
+    // Users: Profiles and wallet information
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data) && (
+        isAdmin() || !('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false
+      );
+      allow update: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidUser(request.resource.data) && (
+        isAdmin() || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'phone', 'wallet', 'stats', 'isKycVerified', 'referralClaimed', 'deviceId'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Games: Supported games
+    match /games/{gameId} {
+      allow get: if isSignedIn() && isValidId(gameId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Game Rules: Detailed rules for game modes
+    match /gameRules/{ruleId} {
+      allow get: if isSignedIn() && isValidId(ruleId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Matches: The actual tournament/match instances
+    match /matches/{matchId} {
+      allow get: if isSignedIn() && isValidId(matchId);
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && isValidId(matchId);
+      allow delete: if isAdmin() && isValidId(matchId);
+      allow update: if isSignedIn() && isValidId(matchId) && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'playersCount', 'filledSlots'])
+      );
+    }
+
+    // Registrations: Player entries into matches
+    match /registrations/{registrationId} {
+      allow get: if isSignedIn() && isValidId(registrationId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(registrationId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(registrationId) && (
+        isAdmin() || (isOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId)
+      );
+      allow delete: if isSignedIn() && isValidId(registrationId) && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    // Transactions: Financial audit trail (Immutable)
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && isValidId(transactionId) && (resource.data.userId == request.auth.uid || isAdmin() || resource.data.type == 'win');
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.type == 'win'
+      );
+      allow create: if isSignedIn() && isValidId(transactionId) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if false;
+    }
+
+    // App Settings: Global configs
+    match /appSettings/{settingId} {
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Banners: Promotional banners
+    match /banners/{bannerId} {
+      allow get: if isSignedIn() && isValidId(bannerId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Match Results: Declared winners and scores
+    match /matchResults/{matchId} {
+      allow get: if isSignedIn() && isValidId(matchId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Payment Settings: Gateway configurations
+    match /paymentSettings/{gatewayId} {
+      allow get: if isSignedIn() && isValidId(gatewayId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Notifications: Push alerts & broadcast messages
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId);
+      allow list: if isSignedIn();
+      allow create, delete: if isAdmin() && isValidId(notificationId);
+      allow update: if isSignedIn() && isValidId(notificationId) && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+      );
+    }
+
+    // Legacy/Mirror support for tournaments
+    match /tournaments/{tournamentId} {
+      allow get: if isSignedIn() && isValidId(tournamentId);
+      allow list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Meta/Counters
+    match /meta/counters {
+      allow get, write: if isAdmin();
+    }
+
+    // Connection check doc
+    match /test/connection {
+      allow get: if isSignedIn();
+    }
+  }
+}
